@@ -10,9 +10,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import os
+
 # --- کلیدهای API ---
-TELEGRAM_TOKEN = ""
-GEMINI_API_KEY = "" # کلیدی که از گوگل گرفتی
+# این کد به پایتون می‌گوید که مقادیر را از متغیرهای محیطی در سرور Railway بخواند
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
 
 # --- تنظیمات Gemini ---
 genai.configure(api_key=GEMINI_API_KEY)
@@ -96,4 +100,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
