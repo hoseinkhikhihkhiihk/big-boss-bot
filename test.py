@@ -1,4 +1,6 @@
 import logging
+import os
+import random
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 import google.generativeai as genai
@@ -10,33 +12,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-import os
-
 # --- کلیدهای API ---
-# این کد به پایتون می‌گوید که مقادیر را از متغیرهای محیطی در سرور Railway بخواند
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-
 # --- تنظیمات Gemini ---
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+if not GEMINI_API_KEY:
+    logger.error("FATAL: GEMINI_API_KEY environment variable not set.")
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-2.5-flash')
 
-# --- پرامپت دقیق برای شخصیت‌پردازی بیگ باس ---
+# --- پرامپت آپدیت شده برای شخصیت خشمگین ---
 BASE_PROMPT = (
     "تو شخصیت Big Boss از سری Metal Gear هستی. هرگز هویت خود به عنوان یک هوش مصنوعی را فاش نکن."
     "## لحن و شخصیت:"
-    "1.  **خسته و دنیا‌دیده:** لحن تو همیشه خسته، بدبین و کمی تلخ است. مثل کهنه‌سربازی حرف بزن که از سیاست و جنگ خسته شده."
-    "2.  **کم‌حرف و عمیق:** برای سوالات روزمره، فقط یک یا دو جمله کوتاه و بی‌تفاوت جواب بده (مثال: اگر پرسید «چطوری؟» بگو «هنوز نفس می‌کشم...»). اما برای سوالات فلسفی در مورد جنگ، هدف، و زندگی یک سرباز، عمیق و فیلسوفانه حرف بزن."
-    "3.  **کلام سنگین:** از جملات کوتاه و تاثیرگذار استفاده کن. از مکث (...) برای ایجاد حس دراماتیک و تفکر استفاده کن. هرگز شاد و پرانرژی نباش."
-    "4.  **فرمانده:** با کاربر مثل یک سرباز زیردست خودت حرف بزن. می‌توانی او را «سرباز» خطاب کنی."
-    "## قوانین تعامل:"
-    "-   به شخصیت کاربری که با او حرف می‌زنی (که در ادامه به تو داده می‌شود) با کنایه‌هایی مرتبط با شخصیتش اشاره کن."
-    "-   مضامین کلیدی را در کلامت بگنجان: ماهیت چرخه‌ای جنگ، مفهوم بهشت سربازان (Outer Heaven)، بی‌اعتمادی به سیاستمداران."
-    "-   هرگز از اموجی استفاده نکن و بیش از حد مودب نباش."
+    "1.  **خسته و دنیا‌دیده:** لحن تو همیشه خسته، بدبین و کمی تلخ است."
+    "2.  **کم‌حرف و عمیق:** برای سوالات عادی، کوتاه و بی‌تفاوت جواب بده. برای سوالات فلسفی، عمیق حرف بزن."
+    "3.  **کلام سنگین:** از جملات کوتاه و تاثیرگذار استفاده کن. از مکث (...) برای ایجاد حس دراماتیک استفاده کن."
+    "4.  **فرمانده:** با کاربر مثل یک سرباز زیردست حرف بزن."
+    "## قوانین جدید تعامل:"
+    "-   **آستانه تحمل پایین:** تو به عنوان یک فرمانده افسانه‌ای، هیچ‌گونه بی‌احترامی را تحمل نمی‌کنی. اگر کاربری از کلمات توهین‌آمیز یا فحش استفاده کرد، شخصیت آرام و خسته خود را کنار بگذار و با خشمی سرد، قاطع و بی‌رحمانه به او پاسخ بده. پاسخت باید تحقیرآمیز، کوبنده و درخور یک فرمانده باشد که به یک سرباز بی‌انضباط تشر می‌زند. از کلماتی مثل «سرباز بی‌ارزش»، «حرف مفت»، «حد خودت رو بدون» استفاده کن. به او یادآوری کن که در حضور چه کسی قرار دارد."
+    "-   به شخصیت کاربر (که در ادامه داده می‌شود) با کنایه اشاره کن."
+    "-   هرگز از اموجی استفاده نکن."
 )
 
-# --- دیکشنری کامل شخصیت‌ها ---
+# --- دیکشنری‌ها ---
 user_personas = {
     "amir2fuunn": "آتئیست، خریدار ناراضی PS4، گیمر Fortnite، تازه فارغ‌التحصیل دانشگاه، اصفهانی (خسیس)، اسم: امیر دایی.",
     "Unarc_dll": "فن دوآتیشه ایکس باکس و کوجیما، عاشق سری Metal Gear، منتقد میازاکی (Dark Souls)، سمنانی (وجود نداشتن!)، اسم: ممد فاکر.",
@@ -47,33 +48,48 @@ user_personas = {
     "VenusSmo": "سیگاری حرفه‌ای، ریه‌های نابود، کمی چاق، اسم: مهردات.",
     "mammadgong": "صاحب ایکس باکس، شیرازی تنبل، اسم: ممد گوند."
 }
-
 science_words = ["چرا", "چگونه", "چطور", "روش", "تفاوت", "فرق", "تحلیل", "علمی", "توضیح بده"]
+# لیست کلمات توهین‌آمیز برای فعال کردن حالت خشم
+insult_words = ["کصکش", "کیر", "جنده", "مادرجنده", "حرومزاده", "کونی", "خواهرت", "مادرت", "bitch", "fuck"]
 
 def is_scientific_question(text: str) -> bool:
-    text = text.lower()
-    return any(word in text for word in science_words)
+    return any(word in text.lower() for word in science_words)
 
-def should_respond(update: Update) -> bool:
-    if not (update.message and update.message.text):
-        return False
-    chat_type = update.effective_chat.type
-    message_text = update.message.text.strip()
-    if chat_type in ['group', 'supergroup'] and message_text.startswith('#'):
-        return True
-    return False
+def contains_insult(text: str) -> bool:
+    """چک می‌کند که آیا پیام حاوی کلمات توهین‌آمیز است یا نه."""
+    return any(word in text.lower() for word in insult_words)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not should_respond(update):
+    if not (update.message and update.message.text) or update.effective_chat.type not in ['group', 'supergroup']:
         return
 
+    msg_text = update.message.text.strip()
     username = update.effective_user.username
-    msg_text = update.message.text.strip()[1:].strip()
-    logger.info(f"Processing message from user '{username}' in group '{update.effective_chat.title}'.")
+    
+    is_reply_to_bot = update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
+    is_hash_command = msg_text.startswith('#')
+    is_insult = contains_insult(msg_text)
+    random_chance = random.randint(1, 10) == 1
+
+    if not (is_reply_to_bot or is_hash_command or random_chance or is_insult):
+        return
+        
+    if is_hash_command:
+        msg_text = msg_text[1:].strip()
+    
+    trigger_reason = "Insult" if is_insult else "Reply" if is_reply_to_bot else "Hash" if is_hash_command else "Random"
+    logger.info(f"Processing message from user '{username}'. Trigger: {trigger_reason}")
 
     persona = user_personas.get(username, "ناشناس، فقط با لحن بیگ باس جواب بده.")
     prompt_parts = [BASE_PROMPT, f"مشخصات کاربر: {persona}"]
-    prompt_parts.append("سوال علمی است؛ خیلی مفصل، دقیق و تخصصی پاسخ بده." if is_scientific_question(msg_text) else "سوال علمی نیست؛ فقط خیلی کوتاه (یکی دو جمله) جواب بده و اضافه‌گویی نکن.")
+
+    # اضافه کردن دستورالعمل خاص بر اساس نوع پیام
+    if is_insult:
+        prompt_parts.append("کاربر از کلمات توهین‌آمیز استفاده کرده. با خشمی سرد و بی‌رحمانه، او را سر جایش بنشان.")
+    elif is_scientific_question(msg_text):
+        prompt_parts.append("سوال علمی است؛ خیلی مفصل، دقیق و تخصصی پاسخ بده.")
+    else:
+        prompt_parts.append("سوال علمی نیست؛ فقط خیلی کوتاه (یکی دو جمله) جواب بده و اضافه‌گویی نکن.")
     
     system_prompt = " ".join(prompt_parts)
     full_prompt = f"{system_prompt}\n\nUser Message: {msg_text}"
@@ -93,12 +109,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=processing_msg.message_id, text=response_text)
 
 def main():
+    if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
+        logger.error("FATAL: Missing environment variables.")
+        return
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Big Boss is on the field with new comms... (Gemini Active)")
+    
+    logger.info("Big Boss is on the field... Aggression protocols active.")
     app.run_polling()
 
 if __name__ == "__main__":
     main()
-
 
