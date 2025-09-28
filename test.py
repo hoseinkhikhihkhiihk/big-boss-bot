@@ -11,8 +11,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- کلیدهای API ---
-TELEGRAM_TOKEN = "8134893623:AAEKagWHAeYj6hH5zKK0zC2lRvcIuh-FpQU"
-GEMINI_API_KEY = "AIzaSyCQ5e0kTb5ylTDGvh7U4BZk2Bl-KAKDv9k" # کلیدی که از گوگل گرفتی
+TELEGRAM_TOKEN = ""
+GEMINI_API_KEY = "" # کلیدی که از گوگل گرفتی
 
 # --- تنظیمات Gemini ---
 genai.configure(api_key=GEMINI_API_KEY)
@@ -96,3 +96,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
